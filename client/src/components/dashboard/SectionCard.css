@@ -1,0 +1,25 @@
+.section-card {
+    display: flex;
+    flex-direction: column;
+    background-color: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--card-radius);
+    overflow: hidden;
+    box-shadow: var(--card-shadow);
+}
+
+.section-card-header {
+    padding: 6px 12px;
+    color: #ffffff;
+    font-weight: bold;
+    font-size: var(--font-size-sm);
+    text-transform: uppercase;
+    min-height: 28px;
+    display: flex;
+    align-items: center;
+}
+
+.section-card-body {
+    display: flex;
+    flex-direction: row;
+}

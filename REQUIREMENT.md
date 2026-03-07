@@ -21,8 +21,23 @@ Sales: id, product_id (FK), store_id (FK), date, quantity, value
 
 ### Data Ingestion
 
-- Load initial data from CSV/Excel files on startup or via a loader script.
+- **Seed loader:** Script or CLI command to load initial sample data from CSV/Excel on first run.
+- **Upload API:** Endpoint to upload Excel/CSV files and ingest into DB at runtime.
 - Provide a sample dataset (seed data) covering at least 2 years, multiple brands, categories, regions.
+
+#### Upload Endpoint
+
+| Endpoint | Description |
+|---|---|
+| `POST /api/data/upload` | Accepts `.xlsx`, `.xls`, or `.csv` file upload. Parses, validates, and upserts into Products, Regions, Stores, Sales tables. |
+
+**Upload handling requirements:**
+- Accept file via `multipart/form-data`.
+- Use `openpyxl` (xlsx) or `pandas` for parsing.
+- Validate columns/schema before inserting — return clear error messages for malformed files (missing columns, bad data types, etc.).
+- Handle duplicates gracefully (upsert or skip with a summary).
+- Return a response summary: rows processed, rows inserted, rows skipped/errored.
+- Support large files without blocking (consider background task with status polling for big uploads, optional bonus).
 
 ### API Endpoints
 
@@ -81,6 +96,13 @@ All endpoints return JSON. Use query params for filters.
 ---
 
 ## FRONTEND (React + Vite)
+
+### Data Upload Page (Optional but Recommended)
+
+- Simple page/modal with a file picker to upload `.xlsx` or `.csv`.
+- Show upload progress and result summary (rows inserted, errors).
+- Validate file type on the frontend before sending.
+- After successful upload, prompt user to refresh dashboards or auto-refresh.
 
 ### Dashboard 1: Sales Overview
 

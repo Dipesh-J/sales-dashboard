@@ -1,0 +1,176 @@
+.filter-bar {
+    display: flex;
+    flex-direction: column;
+    background-color: var(--color-bg-page);
+    border-bottom: 2px solid var(--color-border);
+    padding: 12px 20px;
+    gap: 16px;
+}
+
+.top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+}
+
+.title-section h2 {
+    font-size: var(--font-size-xl);
+    color: var(--color-text-dark);
+    margin-bottom: 4px;
+}
+
+.title-section .subtitle {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-gray);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.top-controls {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.refresh-info {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-gray);
+}
+
+.bottom-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+}
+
+.dropdowns-grid {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.filter-group label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-gray);
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.select-input {
+    min-width: 140px;
+    padding: 6px 30px 6px 10px;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-dark);
+    background-color: #fff;
+    border: 1px solid var(--color-border);
+    border-radius: var(--card-radius);
+    outline: none;
+    font-family: inherit;
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23777777' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+}
+
+.select-input:focus {
+    border-color: var(--color-sales-header);
+}
+
+.date-select {
+    font-weight: 600;
+    border-color: transparent;
+    background-color: transparent;
+    font-size: var(--font-size-base);
+    padding: 4px 24px 4px 0;
+    background-position: right 0 center;
+}
+
+.date-select:focus {
+    border-color: transparent;
+}
+
+.reset-btn {
+    background-color: var(--color-magenta);
+    color: white;
+    border: none;
+    border-radius: var(--card-radius);
+    padding: 6px 16px;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+    height: 32px;
+    transition: opacity 0.2s;
+}
+
+.reset-btn:hover {
+    opacity: 0.9;
+    border-color: transparent;
+}
+
+.export-btn {
+    background-color: var(--color-sales-header);
+    color: white;
+    border: none;
+    border-radius: var(--card-radius);
+    padding: 6px 14px;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+    height: 32px;
+    transition: opacity 0.2s;
+    white-space: nowrap;
+}
+
+.export-btn:hover {
+    opacity: 0.9;
+}
+
+/* Dark mode select inputs */
+body.dark-mode .select-input {
+    background-color: var(--color-bg-card);
+    color: var(--color-text-dark);
+    border-color: var(--color-border);
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .top-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .top-controls {
+        flex-wrap: wrap;
+    }
+
+    .bottom-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .dropdowns-grid {
+        width: 100%;
+    }
+
+    .filter-group {
+        flex: 1;
+        min-width: 120px;
+    }
+
+    .select-input {
+        min-width: 100px;
+        width: 100%;
+    }
+}

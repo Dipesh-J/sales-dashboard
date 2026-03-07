@@ -1,0 +1,82 @@
+:root {
+  /* Colors */
+  --color-sidebar-bg: #1d2b36;
+  --color-magenta: #ba0d59;
+  --color-sales-header: #335368;
+  --color-coverage-header: #2171b5;
+  --color-stock-header: #00aeb3;
+  --color-cyan: #29b6f6;
+  --color-pink: #d81b60;
+  --color-green: #4caf50;
+  --color-red: #e53935;
+  
+  --color-text-dark: #333333;
+  --color-text-gray: #777777;
+  --color-border: #e0e0e0;
+  --color-bg-page: #ffffff;
+  --color-bg-card: #ffffff;
+
+  /* Typography */
+  --font-family-base: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+  --font-size-xs: 0.625rem; /* 10px */
+  --font-size-sm: 0.75rem;  /* 12px */
+  --font-size-base: 0.875rem; /* 14px */
+  --font-size-lg: 1rem;     /* 16px */
+  --font-size-xl: 1.25rem;  /* 20px */
+  
+  /* Styling */
+  --card-radius: 4px; /* Rigid dense grid, small radius */
+  --card-shadow: none; /* Spec mentions light gray borders, not necessarily heavy shadows */
+  
+  font-family: var(--font-family-base);
+  color: var(--color-text-dark);
+  background-color: var(--color-bg-page);
+  line-height: 1.5;
+  font-weight: 400;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+*, *::before, *::after {
+  box-sizing: inherit;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+  font-weight: 600;
+}
+
+p {
+  margin: 0;
+}
+
+ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* Dark Mode Overrides */
+body.dark-mode {
+  --color-bg-page: #121212;
+  --color-bg-card: #1e1e1e;
+  --color-text-dark: #e0e0e0;
+  --color-text-gray: #aaaaaa;
+  --color-border: #333333;
+  --color-sidebar-bg: #0d1b24;
+}

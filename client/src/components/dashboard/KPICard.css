@@ -1,0 +1,80 @@
+.kpi-card {
+    display: flex;
+    flex-direction: column;
+    padding: 8px;
+    background-color: var(--color-bg-card);
+    border-right: 1px solid var(--color-border);
+    min-width: 110px;
+    flex: 1;
+}
+
+.kpi-card:last-child {
+    border-right: none;
+}
+
+.kpi-title {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-gray);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.kpi-main-val {
+    font-size: var(--font-size-xl);
+    font-weight: bold;
+    color: var(--color-text-dark);
+    line-height: 1.2;
+}
+
+.kpi-footer {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin-top: 4px;
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.kpi-sub-val {
+    color: var(--color-text-gray);
+}
+
+.kpi-trend.positive,
+.kpi-percent.positive {
+    color: var(--color-green);
+}
+
+.kpi-trend.negative,
+.kpi-percent.negative {
+    color: var(--color-red);
+}
+
+.skeleton-loader {
+    background: linear-gradient(90deg, #ececec 0px, #f4f4f4 40px, #ececec 80px);
+    background-size: 200vw 100%;
+    animation: shine 1.5s infinite linear;
+    border-radius: 4px;
+}
+
+.h-32 {
+    height: 32px;
+}
+
+.w-full {
+    width: 100%;
+}
+
+.mt-2 {
+    margin-top: 8px;
+}
+
+@keyframes shine {
+    to {
+        background-position: 20vw 0;
+    }
+}
