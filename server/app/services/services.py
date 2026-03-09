@@ -7,13 +7,30 @@ from ..models.models import Sale, Product, Store, Region
 
 def _parse_date_range(date_range: str, db: Session = None):
     """Convert frontend dateRange param ('month','quarter','year') to start/end dates.
-    Uses the latest date in the database as the reference point so dashboards
-    always show the most recent data available."""
+    Picks the most recent year that has meaningful data (>10 rows), ignoring stray
+    future rows that would otherwise shift the dashboard to a near-empty year."""
     ref = date.today()
     if db:
-        max_date = db.query(func.max(Sale.date)).scalar()
-        if max_date:
-            ref = max_date
+        total = db.query(func.count(Sale.id)).scalar() or 0
+        # Threshold: a year needs at least 10 rows or 5% of total data
+        threshold = max(10, int(total * 0.05))
+
+        # Get years with their row counts, most recent first
+        from sqlalchemy import desc
+        year_counts = db.query(
+            extract("year", Sale.date).label("yr"),
+            func.count().label("cnt"),
+        ).group_by("yr").order_by(desc("yr")).all()
+
+        for yr_row in year_counts:
+            if yr_row.cnt >= threshold:
+                yr = int(yr_row.yr)
+                max_in_year = db.query(func.max(Sale.date)).filter(
+                    extract("year", Sale.date) == yr
+                ).scalar()
+                if max_in_year:
+                    ref = max_in_year
+                break
 
     if date_range == "month":
         start = ref.replace(day=1)
@@ -350,26 +367,39 @@ def generate_sample_data(db: Session, rows: int = 10):
             ("Reebok Nano X4", "Reebok", "Footwear"),
         ]
 
-    regions = [r[0] for r in db.query(Region.name).distinct().all()] or ["North", "South", "East", "West"]
+    # Fetch store-region pairs to keep them consistent
+    store_region_pairs = db.query(Store.id, Region.name).join(
+        Region, Store.region_id == Region.id
+    ).all()
+    if not store_region_pairs:
+        store_region_pairs = [
+            (101, "North"), (102, "North"),
+            (201, "South"), (202, "South"),
+            (301, "East"), (302, "East"),
+            (401, "West"), (402, "West"),
+        ]
 
-    store_ids = [r[0] for r in db.query(Store.id).distinct().limit(50).all()]
-    if not store_ids:
-        store_ids = list(range(101, 121))
+    # Use max date in DB as upper bound to avoid generating future dates
+    max_date = db.query(func.max(Sale.date)).scalar()
+    ref_date = max_date if max_date else date.today()
 
     sample_data = []
-    today = date.today()
 
     for _ in range(rows):
         name, brand, category = random.choice(product_tuples)
+        store_id, region = random.choice(store_region_pairs)
+        sale_date = ref_date - timedelta(days=random.randint(0, 365))
+        quantity = random.randint(1, 100)
+        unit_price = round(random.uniform(10.0, 250.0), 2)
         sample_data.append({
             "Product Name": name,
             "Brand": brand,
             "Category": category,
-            "Region": random.choice(regions),
-            "Store ID": random.choice(store_ids),
-            "Date": (today - timedelta(days=random.randint(0, 365))).isoformat(),
-            "Quantity": random.randint(1, 100),
-            "Value": round(random.uniform(10.0, 1000.0), 2)
+            "Region": region,
+            "Store ID": store_id,
+            "Date": sale_date.isoformat(),
+            "Quantity": quantity,
+            "Value": round(quantity * unit_price, 2)
         })
 
     return sample_data

@@ -15,10 +15,11 @@ else:
 
 engine_kwargs = {}
 if not settings.is_sqlite:
-    engine_kwargs["pool_size"] = 5
-    engine_kwargs["max_overflow"] = 10
+    engine_kwargs["pool_size"] = 2
+    engine_kwargs["max_overflow"] = 3
     engine_kwargs["pool_pre_ping"] = True
-    engine_kwargs["pool_recycle"] = 1800  # Recycle connections after 30 mins
+    engine_kwargs["pool_recycle"] = 300  # Recycle connections every 5 mins
+    engine_kwargs["pool_timeout"] = 30   # Wait up to 30s for a connection
 
 engine = create_engine(
     settings.DATABASE_URL, connect_args=connect_args, **engine_kwargs
