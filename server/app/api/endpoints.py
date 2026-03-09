@@ -95,7 +95,7 @@ def get_top_products(n: int = 10, dateRange: Optional[str] = None, brand: Option
 def get_sales_trend(dateRange: Optional[str] = None, brand: Optional[str] = None,
                     category: Optional[str] = None, region: Optional[str] = None,
                     start_date: Optional[str] = None, end_date: Optional[str] = None,
-                    granularity: Literal["month", "quarter", "year"] = "month",
+                    granularity: Literal["month", "quarter", "year"] = "year",
                     db: Session = Depends(get_db)):
     return services.get_sales_trend(db, brand=brand, category=category, region=region,
                                     date_range=dateRange, start_date=start_date, end_date=end_date,
@@ -147,7 +147,7 @@ def get_active_stores_by_brand(dateRange: Optional[str] = None, brand: Optional[
 def get_active_stores_trend(dateRange: Optional[str] = None, brand: Optional[str] = None,
                             category: Optional[str] = None, region: Optional[str] = None,
                             start_date: Optional[str] = None, end_date: Optional[str] = None,
-                            granularity: Literal["month", "quarter", "year"] = "month",
+                            granularity: Literal["month", "quarter", "year"] = "year",
                             db: Session = Depends(get_db)):
     return services.get_active_stores_trend(db, brand=brand, category=category, region=region,
                                             date_range=dateRange, start_date=start_date, end_date=end_date,

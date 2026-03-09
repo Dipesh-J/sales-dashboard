@@ -5,7 +5,7 @@ const GlobalStateContext = createContext();
 
 export const GlobalStateProvider = ({ children }) => {
   const [filters, setFilters] = useState({
-    dateRange: 'month', // month, quarter, year
+    dateRange: 'year', // month, quarter, year
     brand: 'All',
     category: 'All',
     region: 'All',
@@ -49,7 +49,7 @@ export const GlobalStateProvider = ({ children }) => {
           brands: ['All', ...brandsRes.data.map(i => i.name || i)],
           categories: ['All', ...categoriesRes.data.map(i => i.name || i)],
           regions: ['All', ...regionsRes.data.map(i => i.name || i)],
-          dateRanges: datesRes.data.length ? datesRes.data : ['month', 'quarter', 'year']
+          dateRanges: datesRes.data.length ? datesRes.data : ['year', 'quarter', 'month']
         });
       } catch (error) {
         console.error("Failed to fetch filters", error);

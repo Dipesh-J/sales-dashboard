@@ -189,7 +189,7 @@ def get_top_products(db: Session, n=10, brand=None, category=None, region=None,
 
 def get_sales_trend(db: Session, brand=None, category=None, region=None,
                     date_range=None, start_date=None, end_date=None,
-                    granularity="month"):
+                    granularity="year"):
     sd, ed = _resolve_dates(date_range, start_date, end_date, db)
 
     if granularity == "year":
@@ -296,7 +296,7 @@ def get_active_stores_by_brand(db: Session, brand=None, category=None, region=No
 
 def get_active_stores_trend(db: Session, brand=None, category=None, region=None,
                             date_range=None, start_date=None, end_date=None,
-                            granularity="month"):
+                            granularity="year"):
     sd, ed = _resolve_dates(date_range, start_date, end_date, db)
 
     if granularity == "year":

@@ -44,7 +44,7 @@ const FilterBar = () => {
     };
 
     const handleReset = () => {
-        updateFilter('dateRange', 'month');
+        updateFilter('dateRange', 'year');
         updateFilter('brand', 'All');
         updateFilter('category', 'All');
         updateFilter('region', 'All');
