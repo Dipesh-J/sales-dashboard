@@ -189,7 +189,7 @@ def get_top_products(db: Session, n=10, brand=None, category=None, region=None,
 
 def get_sales_trend(db: Session, brand=None, category=None, region=None,
                     date_range=None, start_date=None, end_date=None,
-                    granularity="year"):
+                    granularity="month"):
     sd, ed = _resolve_dates(date_range, start_date, end_date, db)
 
     if granularity == "year":
@@ -296,7 +296,7 @@ def get_active_stores_by_brand(db: Session, brand=None, category=None, region=No
 
 def get_active_stores_trend(db: Session, brand=None, category=None, region=None,
                             date_range=None, start_date=None, end_date=None,
-                            granularity="year"):
+                            granularity="month"):
     sd, ed = _resolve_dates(date_range, start_date, end_date, db)
 
     if granularity == "year":
@@ -338,36 +338,38 @@ def get_active_stores_trend(db: Session, brand=None, category=None, region=None,
 
 def generate_sample_data(db: Session, rows: int = 10):
     import random
-    
-    # Fetch distinct values from db
-    brands = [r[0] for r in db.query(Product.brand).distinct().all()] or ["Acme", "Globex", "Initech"]
-    categories = [r[0] for r in db.query(Product.category).distinct().all()] or ["Electronics", "Clothing", "Home"]
+
+    # Fetch whole product tuples (name, brand, category) to keep them consistent
+    product_tuples = db.query(Product.name, Product.brand, Product.category).distinct().limit(50).all()
+    if not product_tuples:
+        product_tuples = [
+            ("Nike Air Max 90", "Nike", "Footwear"),
+            ("Adidas Ultraboost 24", "Adidas", "Footwear"),
+            ("Puma Logo Tee", "Puma", "Apparel"),
+            ("UA Rival Fleece Hoodie", "Under Armour", "Apparel"),
+            ("Reebok Nano X4", "Reebok", "Footwear"),
+        ]
+
     regions = [r[0] for r in db.query(Region.name).distinct().all()] or ["North", "South", "East", "West"]
-    
-    # Fetch some active stores or generate random IDs
+
     store_ids = [r[0] for r in db.query(Store.id).distinct().limit(50).all()]
     if not store_ids:
-        store_ids = list(range(1, 21))
-        
-    products = [r[0] for r in db.query(Product.name).distinct().limit(50).all()]
-    if not products:
-        products = ["Widget Pro", "Super Gizmo", "Mega Tool", "Ultra Rul", "Basic Thing"]
+        store_ids = list(range(101, 121))
 
     sample_data = []
-    headers = ["Product Name", "Brand", "Category", "Region", "Store ID", "Date", "Quantity", "Value"]
-    
     today = date.today()
-    
+
     for _ in range(rows):
+        name, brand, category = random.choice(product_tuples)
         sample_data.append({
-            "Product Name": random.choice(products),
-            "Brand": random.choice(brands),
-            "Category": random.choice(categories),
+            "Product Name": name,
+            "Brand": brand,
+            "Category": category,
             "Region": random.choice(regions),
             "Store ID": random.choice(store_ids),
-            "Date": (today - timedelta(days=random.randint(0, 30))).isoformat(),
+            "Date": (today - timedelta(days=random.randint(0, 365))).isoformat(),
             "Quantity": random.randint(1, 100),
             "Value": round(random.uniform(10.0, 1000.0), 2)
         })
-        
+
     return sample_data
