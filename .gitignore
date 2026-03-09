@@ -12,5 +12,10 @@ __pycache__/
 # Database
 *.db
 
+# Environment variables
+.env
+server/.env
+client/.env
+
 # OS
 .DS_Store

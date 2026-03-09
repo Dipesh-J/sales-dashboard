@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Box, Button, Typography, Paper, Alert } from '@mui/material';
-import { CloudUpload } from '@mui/icons-material';
-import axios from 'axios';
+import { Box, Button, Typography, Paper, Alert, Divider } from '@mui/material';
+import { CloudUpload, GetApp } from '@mui/icons-material';
+import api, { getSampleData } from '../services/api';
 
 const UploadPage = () => {
     const [file, setFile] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [generating, setGenerating] = useState(false);
     const [result, setResult] = useState(null);
     const [error, setError] = useState(null);
 
@@ -32,7 +33,7 @@ const UploadPage = () => {
         formData.append('file', file);
 
         try {
-            const response = await axios.post('http://localhost:8000/api/data/upload', formData, {
+            const response = await api.post('/api/data/upload', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
             setResult(response.data);
@@ -40,6 +41,45 @@ const UploadPage = () => {
             setError(err.response?.data?.detail || 'An error occurred during upload');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleGenerateSample = async () => {
+        setGenerating(true);
+        setError(null);
+        try {
+            const data = await getSampleData(10);
+
+            // Convert to CSV
+            if (data.length === 0) throw new Error("No data generated");
+
+            const headers = Object.keys(data[0]);
+            const csvRows = [
+                headers.join(','), // header row
+                ...data.map(row =>
+                    headers.map(header => {
+                        const cell = row[header] === null || row[header] === undefined ? '' : row[header];
+                        return `"${String(cell).replace(/"/g, '""')}"`;
+                    }).join(',')
+                )
+            ];
+            const csvString = csvRows.join('\n');
+
+            // Trigger download
+            const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', 'sample_sales_data.csv');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            setResult({ summary: "Sample data generated and downloaded successfully!" });
+        } catch (err) {
+            setError(err.message || 'Failed to generate sample data');
+        } finally {
+            setGenerating(false);
         }
     };
 
@@ -87,7 +127,8 @@ const UploadPage = () => {
 
             {result && (
                 <Alert severity="success" sx={{ mt: 3 }}>
-                    Upload successful! Processed: {result.rows_processed} rows, Inserted: {result.rows_inserted} rows.
+                    {result.summary || "Upload successful!"}
+                    {result.rows_processed !== undefined && ` Processed: ${result.rows_processed} rows, Inserted: ${result.rows_inserted} rows.`}
                     {result.errors?.length > 0 && (
                         <Box mt={1}>
                             <strong>Errors encountered:</strong>
@@ -107,6 +148,19 @@ const UploadPage = () => {
                 onClick={handleUpload}
             >
                 {loading ? 'Uploading...' : 'Upload Data To Backend'}
+            </Button>
+
+            <Divider sx={{ my: 4 }}>OR</Divider>
+
+            <Button
+                variant="outlined"
+                fullWidth
+                startIcon={<GetApp />}
+                sx={{ py: 1.5, borderColor: '#F0005C', color: '#F0005C', '&:hover': { borderColor: '#D0004C', bgcolor: 'rgba(240, 0, 92, 0.04)' } }}
+                disabled={generating}
+                onClick={handleGenerateSample}
+            >
+                {generating ? 'Generating...' : 'Generate 10 rows of Sample Data'}
             </Button>
         </Box>
     );

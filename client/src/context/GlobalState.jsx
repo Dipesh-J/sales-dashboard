@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 
 const GlobalStateContext = createContext();
 
@@ -39,10 +39,10 @@ export const GlobalStateProvider = ({ children }) => {
     const fetchFilters = async () => {
       try {
         const [brandsRes, categoriesRes, regionsRes, datesRes] = await Promise.all([
-          axios.get('http://localhost:8000/api/filters/brands').catch(() => ({ data: [] })),
-          axios.get('http://localhost:8000/api/filters/categories').catch(() => ({ data: [] })),
-          axios.get('http://localhost:8000/api/filters/regions').catch(() => ({ data: [] })),
-          axios.get('http://localhost:8000/api/filters/date-range').catch(() => ({ data: [] }))
+          api.get('/api/filters/brands').catch(() => ({ data: [] })),
+          api.get('/api/filters/categories').catch(() => ({ data: [] })),
+          api.get('/api/filters/regions').catch(() => ({ data: [] })),
+          api.get('/api/filters/date-range').catch(() => ({ data: [] }))
         ]);
 
         setFilterOptions({

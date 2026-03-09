@@ -1,12 +1,11 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Layout from './components/layout/Layout';
 import { GlobalStateProvider } from './context/GlobalState';
 import UploadPage from './pages/UploadPage';
 
-import SalesDashboard from './pages/SalesDashboard';
-
-// Placeholders for dashboards
-import StoresDashboard from './pages/StoresDashboard';
+const SalesDashboard = lazy(() => import('./pages/SalesDashboard'));
+const StoresDashboard = lazy(() => import('./pages/StoresDashboard'));
 
 function App() {
   return (
@@ -15,8 +14,16 @@ function App() {
         <Routes>
           <Route path="/" element={<Layout />}>
             <Route index element={<UploadPage />} />
-            <Route path="sales" element={<SalesDashboard />} />
-            <Route path="stores" element={<StoresDashboard />} />
+            <Route path="sales" element={
+              <Suspense fallback={<div style={{ padding: '2rem', textAlign: 'center' }}>Loading dashboard…</div>}>
+                <SalesDashboard />
+              </Suspense>
+            } />
+            <Route path="stores" element={
+              <Suspense fallback={<div style={{ padding: '2rem', textAlign: 'center' }}>Loading dashboard…</div>}>
+                <StoresDashboard />
+              </Suspense>
+            } />
           </Route>
         </Routes>
       </GlobalStateProvider>

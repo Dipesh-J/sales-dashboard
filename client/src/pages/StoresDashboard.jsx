@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 import KPICard from '../components/dashboard/KPICard';
 import SectionCard from '../components/dashboard/SectionCard';
 import ActiveStoresTrendChart from '../components/dashboard/ActiveStoresTrendChart';
 import ActiveStoresByRegionChart from '../components/dashboard/ActiveStoresByRegionChart';
+import ActiveStoresByBrandChart from '../components/dashboard/ActiveStoresByBrandChart';
 import DrillDownModal from '../components/dashboard/DrillDownModal';
 import { useGlobalState } from '../context/GlobalState';
 import './SalesDashboard.css'; // Reusing the same CSS grid layout
@@ -21,11 +22,13 @@ const StoresDashboard = () => {
         yoyChange: null,
         yoyPercent: null,
         storesTrend: [],
-        storesByRegion: []
+        storesByRegion: [],
+        storesByBrand: []
     });
 
     // Sort state
     const [regionSort, setRegionSort] = useState('default');
+    const [brandSort, setBrandSort] = useState('default');
 
     // Drill-down state
     const [drillDown, setDrillDown] = useState({ open: false, title: '', data: null, isLoading: false, columns: [] });
@@ -36,20 +39,25 @@ const StoresDashboard = () => {
             setIsLoading(true);
             try {
                 const query = new URLSearchParams(filters).toString();
-                const [totalRes, yoyRes, trendRes, regionRes] = await Promise.all([
-                    axios.get(`http://localhost:8000/api/stores/active?${query}`).catch(() => ({ data: { value: 0 } })),
-                    axios.get(`http://localhost:8000/api/stores/active/yoy?${query}`).catch(() => ({ data: { value: 0, percent: 0 } })),
-                    axios.get(`http://localhost:8000/api/stores/active/trend?${query}`).catch(() => ({ data: [] })),
-                    axios.get(`http://localhost:8000/api/stores/active/by-region?${query}`).catch(() => ({ data: [] }))
+                const [totalRes, yoyRes, trendRes, regionRes, brandRes] = await Promise.all([
+                    api.get(`/api/stores/active?${query}`).catch(() => ({ data: { value: 0 } })),
+                    api.get(`/api/stores/active/yoy?${query}`).catch(() => ({ data: { value: 0, percent: 0 } })),
+                    api.get(`/api/stores/active/trend?${query}`).catch(() => ({ data: [] })),
+                    api.get(`/api/stores/active/by-region?${query}`).catch(() => ({ data: { data: [] } })),
+                    api.get(`/api/stores/active/by-brand?${query}`).catch(() => ({ data: { data: [] } }))
                 ]);
 
                 if (isMounted) {
+                    const regionData = regionRes.data?.data || regionRes.data || [];
+                    const brandData = brandRes.data?.data || brandRes.data || [];
+
                     const newData = {
                         totalActive: totalRes.data?.value || 0,
                         yoyChange: yoyRes.data?.value || 0,
                         yoyPercent: yoyRes.data?.percent || 0,
                         storesTrend: trendRes.data || [],
-                        storesByRegion: regionRes.data || []
+                        storesByRegion: regionData,
+                        storesByBrand: brandData
                     };
                     setData(newData);
                     setDashboardData({
@@ -75,8 +83,24 @@ const StoresDashboard = () => {
         ]});
         try {
             const query = new URLSearchParams({ ...filters, region: entry.region }).toString();
-            const res = await axios.get(`http://localhost:8000/api/stores/active/by-brand?${query}`);
-            setDrillDown(prev => ({ ...prev, data: res.data || [], isLoading: false }));
+            const res = await api.get(`/api/stores/active/by-brand?${query}`);
+            const items = res.data?.data || res.data || [];
+            setDrillDown(prev => ({ ...prev, data: items, isLoading: false }));
+        } catch {
+            setDrillDown(prev => ({ ...prev, data: [], isLoading: false }));
+        }
+    };
+
+    const handleBrandDrillDown = async (entry) => {
+        setDrillDown({ open: true, title: `Active Stores for "${entry.brand}" by Region`, data: null, isLoading: true, columns: [
+            { key: 'region', label: 'Region' },
+            { key: 'value', label: 'Active Stores' }
+        ]});
+        try {
+            const query = new URLSearchParams({ ...filters, brand: entry.brand }).toString();
+            const res = await api.get(`/api/stores/active/by-region?${query}`);
+            const items = res.data?.data || res.data || [];
+            setDrillDown(prev => ({ ...prev, data: items, isLoading: false }));
         } catch {
             setDrillDown(prev => ({ ...prev, data: [], isLoading: false }));
         }
@@ -95,17 +119,24 @@ const StoresDashboard = () => {
                 <div style={{ gridColumn: 'span 2' }}>
                     <ActiveStoresTrendChart data={data.storesTrend} title="Active Stores Trend" isLoading={isLoading} />
                 </div>
-                <div style={{ gridColumn: 'span 1' }}>
-                    <ActiveStoresByRegionChart
-                        data={sortData(data.storesByRegion, regionSort)}
-                        title="Active Stores by Region"
-                        isLoading={isLoading}
-                        sortable
-                        sortOrder={regionSort}
-                        onSortChange={setRegionSort}
-                        onBarClick={handleRegionDrillDown}
-                    />
-                </div>
+                <ActiveStoresByRegionChart
+                    data={sortData(data.storesByRegion, regionSort)}
+                    title="Active Stores by Region"
+                    isLoading={isLoading}
+                    sortable
+                    sortOrder={regionSort}
+                    onSortChange={setRegionSort}
+                    onBarClick={handleRegionDrillDown}
+                />
+                <ActiveStoresByBrandChart
+                    data={sortData(data.storesByBrand, brandSort)}
+                    title="Active Stores by Brand"
+                    isLoading={isLoading}
+                    sortable
+                    sortOrder={brandSort}
+                    onSortChange={setBrandSort}
+                    onBarClick={handleBrandDrillDown}
+                />
             </div>
 
             <DrillDownModal

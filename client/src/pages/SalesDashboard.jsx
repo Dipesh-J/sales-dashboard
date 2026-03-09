@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 import KPICard from '../components/dashboard/KPICard';
 import SectionCard from '../components/dashboard/SectionCard';
 import SalesTrendChart from '../components/dashboard/SalesTrendChart';
 import SalesByBrandChart from '../components/dashboard/SalesByBrandChart';
 import SalesByRegionChart from '../components/dashboard/SalesByRegionChart';
+import SalesByCategoryChart from '../components/dashboard/SalesByCategoryChart';
 import DrillDownModal from '../components/dashboard/DrillDownModal';
 import { useGlobalState } from '../context/GlobalState';
 import './SalesDashboard.css';
@@ -23,12 +24,14 @@ const SalesDashboard = () => {
         topBrand: null,
         salesTrend: [],
         salesByBrand: [],
-        salesByRegion: []
+        salesByRegion: [],
+        salesByCategory: []
     });
 
     // Sort state per chart
     const [brandSort, setBrandSort] = useState('default');
     const [regionSort, setRegionSort] = useState('default');
+    const [categorySort, setCategorySort] = useState('default');
 
     // Drill-down state
     const [drillDown, setDrillDown] = useState({ open: false, title: '', data: null, isLoading: false, columns: [] });
@@ -39,23 +42,28 @@ const SalesDashboard = () => {
             setIsLoading(true);
             try {
                 const query = new URLSearchParams(filters).toString();
-                const [totalRes, yoyRes, topRes, trendRes, brandRes, regionRes] = await Promise.all([
-                    axios.get(`http://localhost:8000/api/sales/total?${query}`).catch(() => ({ data: { value: 0 } })),
-                    axios.get(`http://localhost:8000/api/sales/yoy?${query}`).catch(() => ({ data: { value: 0, percent: 0 } })),
-                    axios.get(`http://localhost:8000/api/sales/top-products?n=1&${query}`).catch(() => ({ data: [{ name: '-' }] })),
-                    axios.get(`http://localhost:8000/api/sales/trend?${query}`).catch(() => ({ data: [] })),
-                    axios.get(`http://localhost:8000/api/sales/by-brand?${query}`).catch(() => ({ data: [] })),
-                    axios.get(`http://localhost:8000/api/sales/by-region?${query}`).catch(() => ({ data: [] }))
+                const [totalRes, yoyRes, trendRes, brandRes, regionRes, categoryRes] = await Promise.all([
+                    api.get(`/api/sales/total?${query}`).catch(() => ({ data: { value: 0 } })),
+                    api.get(`/api/sales/yoy?${query}`).catch(() => ({ data: { value: 0, percent: 0 } })),
+                    api.get(`/api/sales/trend?${query}`).catch(() => ({ data: [] })),
+                    api.get(`/api/sales/by-brand?${query}`).catch(() => ({ data: { data: [] } })),
+                    api.get(`/api/sales/by-region?${query}`).catch(() => ({ data: { data: [] } })),
+                    api.get(`/api/sales/by-category?${query}`).catch(() => ({ data: { data: [] } }))
                 ]);
 
                 if (isMounted) {
+                    const brandData = brandRes.data?.data || brandRes.data || [];
+                    const regionData = regionRes.data?.data || regionRes.data || [];
+                    const categoryData = categoryRes.data?.data || categoryRes.data || [];
+
                     const newData = {
                         totalSales: totalRes.data?.value ? `$${(totalRes.data.value / 1000000).toFixed(1)}M` : '$0M',
                         yoyGrowth: yoyRes.data?.percent || 0,
-                        topBrand: topRes.data?.[0]?.name || '-',
+                        topBrand: brandData[0]?.brand || '-',
                         salesTrend: trendRes.data || [],
-                        salesByBrand: brandRes.data || [],
-                        salesByRegion: regionRes.data || []
+                        salesByBrand: brandData,
+                        salesByRegion: regionData,
+                        salesByCategory: categoryData
                     };
                     setData(newData);
                     setDashboardData({
@@ -82,8 +90,9 @@ const SalesDashboard = () => {
         ]});
         try {
             const query = new URLSearchParams({ ...filters, brand: entry.brand }).toString();
-            const res = await axios.get(`http://localhost:8000/api/sales/top-products?n=20&${query}`);
-            setDrillDown(prev => ({ ...prev, data: res.data || [], isLoading: false }));
+            const res = await api.get(`/api/sales/top-products?n=20&${query}`);
+            const items = res.data?.data || res.data || [];
+            setDrillDown(prev => ({ ...prev, data: items, isLoading: false }));
         } catch {
             setDrillDown(prev => ({ ...prev, data: [], isLoading: false }));
         }
@@ -96,8 +105,24 @@ const SalesDashboard = () => {
         ]});
         try {
             const query = new URLSearchParams({ ...filters, region: entry.region }).toString();
-            const res = await axios.get(`http://localhost:8000/api/sales/by-brand?${query}`);
-            setDrillDown(prev => ({ ...prev, data: res.data || [], isLoading: false }));
+            const res = await api.get(`/api/sales/by-brand?${query}`);
+            const items = res.data?.data || res.data || [];
+            setDrillDown(prev => ({ ...prev, data: items, isLoading: false }));
+        } catch {
+            setDrillDown(prev => ({ ...prev, data: [], isLoading: false }));
+        }
+    };
+
+    const handleCategoryDrillDown = async (entry) => {
+        setDrillDown({ open: true, title: `Top Products in "${entry.name}"`, data: null, isLoading: true, columns: [
+            { key: 'name', label: 'Product' },
+            { key: 'value', label: 'Sales', format: v => `$${Number(v).toLocaleString()}` }
+        ]});
+        try {
+            const query = new URLSearchParams({ ...filters, category: entry.name }).toString();
+            const res = await api.get(`/api/sales/top-products?n=20&${query}`);
+            const items = res.data?.data || res.data || [];
+            setDrillDown(prev => ({ ...prev, data: items, isLoading: false }));
         } catch {
             setDrillDown(prev => ({ ...prev, data: [], isLoading: false }));
         }
@@ -132,6 +157,15 @@ const SalesDashboard = () => {
                     sortOrder={regionSort}
                     onSortChange={setRegionSort}
                     onBarClick={handleRegionDrillDown}
+                />
+                <SalesByCategoryChart
+                    data={sortData(data.salesByCategory, categorySort)}
+                    title="Sales by Category"
+                    isLoading={isLoading}
+                    sortable
+                    sortOrder={categorySort}
+                    onSortChange={setCategorySort}
+                    onBarClick={handleCategoryDrillDown}
                 />
             </div>
 
