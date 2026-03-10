@@ -1,43 +1,40 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, Date
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, Float, Date
 from ..core.database import Base
 
-class Region(Base):
-    __tablename__ = "regions"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, unique=True, index=True)
-    
-    stores = relationship("Store", back_populates="region")
 
-class Store(Base):
-    __tablename__ = "stores"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    region_id = Column(Integer, ForeignKey("regions.id"))
-    
-    region = relationship("Region", back_populates="stores")
-    sales = relationship("Sale", back_populates="store")
+class SalesData(Base):
+    __tablename__ = "sales_data"
 
-class Product(Base):
-    __tablename__ = "products"
-    
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, index=True)
-    brand = Column(String, index=True)
+    master_distributor = Column(String, index=True)
+    distributor = Column(String, index=True)
+    line_of_business = Column(String, index=True)
+    supplier = Column(String)
+    agency = Column(String)
     category = Column(String, index=True)
-    
-    sales = relationship("Sale", back_populates="product")
-
-class Sale(Base):
-    __tablename__ = "sales"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    product_id = Column(Integer, ForeignKey("products.id"))
-    store_id = Column(Integer, ForeignKey("stores.id"))
-    date = Column(Date, index=True)
-    quantity = Column(Integer)
+    segment = Column(String)
+    brand = Column(String, index=True)
+    sub_brand = Column(String)
+    country = Column(String, index=True)
+    city = Column(String, index=True)
+    area = Column(String)
+    retailer_group = Column(String)
+    retailer_sub_group = Column(String)
+    channel = Column(String, index=True)
+    sub_channel = Column(String)
+    salesmen = Column(String)
+    order_number = Column(String)
+    customer = Column(String)
+    customer_account_name = Column(String)
+    customer_account_number = Column(String)
+    item = Column(String)
+    item_description = Column(String)
+    promo_item = Column(String)
+    foc_nonfoc = Column(String)
+    unit_selling_price = Column(Float)
+    invoice_number = Column(String)
+    invoice_date = Column(Date, index=True)
+    year = Column(Integer, index=True)
+    month = Column(String)
+    invoiced_quantity = Column(Float)
     value = Column(Float)
-    
-    product = relationship("Product", back_populates="sales")
-    store = relationship("Store", back_populates="sales")

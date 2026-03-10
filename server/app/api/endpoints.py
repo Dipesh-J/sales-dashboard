@@ -10,7 +10,7 @@ from ..services import services
 router = APIRouter()
 
 # Data Upload Endpoint
-@router.post("/data/upload", summary="Upload sales data", description="Accepts .xlsx or .csv file. Parses, validates required columns, and upserts data in dependency order (Region → Store → Product → Sale). Invalidates all cached dashboard data.", tags=["Upload"])
+@router.post("/data/upload", summary="Upload sales data", description="Accepts .xlsx or .csv file. Parses, validates columns, truncates old data, and bulk-inserts all rows. Invalidates all cached dashboard data.", tags=["Upload"])
 async def upload_data(file: UploadFile = File(...), db: Session = Depends(get_db)):
     content = await file.read()
     import io
@@ -28,148 +28,182 @@ def get_sample_data(rows: int = 10, db: Session = Depends(get_db)):
     return services.generate_sample_data(db, rows)
 
 # Sales Metrics
-@router.get("/sales/total", summary="Get total sales value", description="Returns the aggregate sales value, optionally filtered by date range, brand, category, and region.", tags=["Sales"])
+@router.get("/sales/total", summary="Get total sales value", tags=["Sales"])
 @cached("sales_total")
 def get_total_sales(dateRange: Optional[str] = None, brand: Optional[str] = None,
                     category: Optional[str] = None, region: Optional[str] = None,
+                    city: Optional[str] = None, channel: Optional[str] = None,
                     start_date: Optional[str] = None, end_date: Optional[str] = None,
                     db: Session = Depends(get_db)):
-    return services.get_total_sales(db, brand=brand, category=category, region=region,
+    return services.get_total_sales(db, brand=brand, category=category, country=region,
+                                    city=city, channel=channel,
                                     date_range=dateRange, start_date=start_date, end_date=end_date)
 
-@router.get("/sales/yoy", summary="Get year-over-year sales growth", description="Returns current period sales and YoY percentage change.", tags=["Sales"])
+@router.get("/sales/yoy", summary="Get year-over-year sales growth", tags=["Sales"])
 @cached("sales_yoy")
 def get_yoy_sales(dateRange: Optional[str] = None, brand: Optional[str] = None,
                   category: Optional[str] = None, region: Optional[str] = None,
+                  city: Optional[str] = None, channel: Optional[str] = None,
                   start_date: Optional[str] = None, end_date: Optional[str] = None,
                   db: Session = Depends(get_db)):
-    return services.get_yoy_sales(db, brand=brand, category=category, region=region,
+    return services.get_yoy_sales(db, brand=brand, category=category, country=region,
+                                  city=city, channel=channel,
                                   date_range=dateRange, start_date=start_date, end_date=end_date)
 
-@router.get("/sales/by-brand", summary="Get sales grouped by brand", description="Returns paginated sales totals per brand, sorted descending by value.", tags=["Sales"])
+@router.get("/sales/by-brand", summary="Get sales grouped by brand", tags=["Sales"])
 @cached("sales_by_brand")
 def get_sales_by_brand(dateRange: Optional[str] = None, brand: Optional[str] = None,
                        category: Optional[str] = None, region: Optional[str] = None,
+                       city: Optional[str] = None, channel: Optional[str] = None,
                        start_date: Optional[str] = None, end_date: Optional[str] = None,
                        page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
                        db: Session = Depends(get_db)):
-    return services.get_sales_by_brand(db, brand=brand, category=category, region=region,
+    return services.get_sales_by_brand(db, brand=brand, category=category, country=region,
+                                       city=city, channel=channel,
                                        date_range=dateRange, start_date=start_date, end_date=end_date,
                                        page=page, page_size=page_size)
 
-@router.get("/sales/by-region", summary="Get sales grouped by region", description="Returns paginated sales totals per region, sorted descending by value.", tags=["Sales"])
+@router.get("/sales/by-region", summary="Get sales grouped by country", tags=["Sales"])
 @cached("sales_by_region")
 def get_sales_by_region(dateRange: Optional[str] = None, brand: Optional[str] = None,
                         category: Optional[str] = None, region: Optional[str] = None,
+                        city: Optional[str] = None, channel: Optional[str] = None,
                         start_date: Optional[str] = None, end_date: Optional[str] = None,
                         page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
                         db: Session = Depends(get_db)):
-    return services.get_sales_by_region(db, brand=brand, category=category, region=region,
+    return services.get_sales_by_region(db, brand=brand, category=category, country=region,
+                                        city=city, channel=channel,
                                         date_range=dateRange, start_date=start_date, end_date=end_date,
                                         page=page, page_size=page_size)
 
-@router.get("/sales/by-category", summary="Get sales grouped by category", description="Returns paginated sales totals per product category, sorted descending by value.", tags=["Sales"])
+@router.get("/sales/by-category", summary="Get sales grouped by category", tags=["Sales"])
 @cached("sales_by_category")
 def get_sales_by_category(dateRange: Optional[str] = None, brand: Optional[str] = None,
                           category: Optional[str] = None, region: Optional[str] = None,
+                          city: Optional[str] = None, channel: Optional[str] = None,
                           start_date: Optional[str] = None, end_date: Optional[str] = None,
                           page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
                           db: Session = Depends(get_db)):
-    return services.get_sales_by_category(db, brand=brand, category=category, region=region,
+    return services.get_sales_by_category(db, brand=brand, category=category, country=region,
+                                          city=city, channel=channel,
                                           date_range=dateRange, start_date=start_date, end_date=end_date,
                                           page=page, page_size=page_size)
 
-@router.get("/sales/top-products", summary="Get top N products by sales", description="Returns the top N products ranked by total sales value. Supports pagination.", tags=["Sales"])
+@router.get("/sales/top-products", summary="Get top N products by sales", tags=["Sales"])
 @cached("sales_top_products")
 def get_top_products(n: int = 10, dateRange: Optional[str] = None, brand: Optional[str] = None,
                      category: Optional[str] = None, region: Optional[str] = None,
+                     city: Optional[str] = None, channel: Optional[str] = None,
                      start_date: Optional[str] = None, end_date: Optional[str] = None,
                      page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
                      db: Session = Depends(get_db)):
-    return services.get_top_products(db, n=n, brand=brand, category=category, region=region,
+    return services.get_top_products(db, n=n, brand=brand, category=category, country=region,
+                                     city=city, channel=channel,
                                      date_range=dateRange, start_date=start_date, end_date=end_date,
                                      page=page, page_size=page_size)
 
-@router.get("/sales/trend", summary="Get sales trend over time", description="Returns time-series sales data. Supports month, quarter, and year granularity.", tags=["Sales"])
+@router.get("/sales/trend", summary="Get sales trend over time", tags=["Sales"])
 @cached("sales_trend")
 def get_sales_trend(dateRange: Optional[str] = None, brand: Optional[str] = None,
                     category: Optional[str] = None, region: Optional[str] = None,
+                    city: Optional[str] = None, channel: Optional[str] = None,
                     start_date: Optional[str] = None, end_date: Optional[str] = None,
                     granularity: Literal["month", "quarter", "year"] = "month",
                     db: Session = Depends(get_db)):
-    return services.get_sales_trend(db, brand=brand, category=category, region=region,
+    return services.get_sales_trend(db, brand=brand, category=category, country=region,
+                                    city=city, channel=channel,
                                     date_range=dateRange, start_date=start_date, end_date=end_date,
                                     granularity=granularity)
 
-# Active Stores Metrics
-@router.get("/stores/active", summary="Get total active stores count", description="Returns the count of distinct stores with sales in the given period.", tags=["Stores"])
+# Active Customers Metrics (backward-compatible with /stores/* paths)
+@router.get("/stores/active", summary="Get total active customers count", tags=["Stores"])
 @cached("stores_active")
 def get_active_stores(dateRange: Optional[str] = None, brand: Optional[str] = None,
                       category: Optional[str] = None, region: Optional[str] = None,
+                      city: Optional[str] = None, channel: Optional[str] = None,
                       start_date: Optional[str] = None, end_date: Optional[str] = None,
                       db: Session = Depends(get_db)):
-    return services.get_active_stores(db, brand=brand, category=category, region=region,
+    return services.get_active_stores(db, brand=brand, category=category, country=region,
+                                      city=city, channel=channel,
                                       date_range=dateRange, start_date=start_date, end_date=end_date)
 
-@router.get("/stores/active/yoy", summary="Get YoY active stores change", description="Returns YoY change in active store count and percentage.", tags=["Stores"])
+@router.get("/stores/active/yoy", summary="Get YoY active customers change", tags=["Stores"])
 @cached("stores_active_yoy")
 def get_yoy_active_stores(dateRange: Optional[str] = None, brand: Optional[str] = None,
                           category: Optional[str] = None, region: Optional[str] = None,
+                          city: Optional[str] = None, channel: Optional[str] = None,
                           start_date: Optional[str] = None, end_date: Optional[str] = None,
                           db: Session = Depends(get_db)):
-    return services.get_yoy_active_stores(db, brand=brand, category=category, region=region,
+    return services.get_yoy_active_stores(db, brand=brand, category=category, country=region,
+                                          city=city, channel=channel,
                                           date_range=dateRange, start_date=start_date, end_date=end_date)
 
-@router.get("/stores/active/by-region", summary="Get active stores by region", description="Returns paginated active store counts per region.", tags=["Stores"])
+@router.get("/stores/active/by-region", summary="Get active customers by country", tags=["Stores"])
 @cached("stores_by_region")
 def get_active_stores_by_region(dateRange: Optional[str] = None, brand: Optional[str] = None,
                                 category: Optional[str] = None, region: Optional[str] = None,
+                                city: Optional[str] = None, channel: Optional[str] = None,
                                 start_date: Optional[str] = None, end_date: Optional[str] = None,
                                 page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
                                 db: Session = Depends(get_db)):
-    return services.get_active_stores_by_region(db, brand=brand, category=category, region=region,
+    return services.get_active_stores_by_region(db, brand=brand, category=category, country=region,
+                                                city=city, channel=channel,
                                                 date_range=dateRange, start_date=start_date, end_date=end_date,
                                                 page=page, page_size=page_size)
 
-@router.get("/stores/active/by-brand", summary="Get active stores by brand", description="Returns paginated active store counts per brand, sorted descending.", tags=["Stores"])
+@router.get("/stores/active/by-brand", summary="Get active customers by brand", tags=["Stores"])
 @cached("stores_by_brand")
 def get_active_stores_by_brand(dateRange: Optional[str] = None, brand: Optional[str] = None,
-                                category: Optional[str] = None, region: Optional[str] = None,
-                                start_date: Optional[str] = None, end_date: Optional[str] = None,
-                                page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
-                                db: Session = Depends(get_db)):
-    return services.get_active_stores_by_brand(db, brand=brand, category=category, region=region,
-                                                date_range=dateRange, start_date=start_date, end_date=end_date,
-                                                page=page, page_size=page_size)
+                               category: Optional[str] = None, region: Optional[str] = None,
+                               city: Optional[str] = None, channel: Optional[str] = None,
+                               start_date: Optional[str] = None, end_date: Optional[str] = None,
+                               page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
+                               db: Session = Depends(get_db)):
+    return services.get_active_stores_by_brand(db, brand=brand, category=category, country=region,
+                                               city=city, channel=channel,
+                                               date_range=dateRange, start_date=start_date, end_date=end_date,
+                                               page=page, page_size=page_size)
 
-@router.get("/stores/active/trend", summary="Get active stores trend over time", description="Returns time-series active store counts. Supports month, quarter, and year granularity.", tags=["Stores"])
+@router.get("/stores/active/trend", summary="Get active customers trend over time", tags=["Stores"])
 @cached("stores_trend")
 def get_active_stores_trend(dateRange: Optional[str] = None, brand: Optional[str] = None,
                             category: Optional[str] = None, region: Optional[str] = None,
+                            city: Optional[str] = None, channel: Optional[str] = None,
                             start_date: Optional[str] = None, end_date: Optional[str] = None,
                             granularity: Literal["month", "quarter", "year"] = "month",
                             db: Session = Depends(get_db)):
-    return services.get_active_stores_trend(db, brand=brand, category=category, region=region,
+    return services.get_active_stores_trend(db, brand=brand, category=category, country=region,
+                                            city=city, channel=channel,
                                             date_range=dateRange, start_date=start_date, end_date=end_date,
                                             granularity=granularity)
 
-# Utilities
-@router.get("/filters/brands", summary="Get available brands", description="Returns a list of all distinct brand names.", tags=["Filters"])
+# Filters
+@router.get("/filters/brands", summary="Get available brands", tags=["Filters"])
 @cached("filter_brands", ttl=TTL_FILTERS)
 def get_brands(db: Session = Depends(get_db)):
     return services.get_brands(db)
 
-@router.get("/filters/categories", summary="Get available categories", description="Returns a list of all distinct product categories.", tags=["Filters"])
+@router.get("/filters/categories", summary="Get available categories", tags=["Filters"])
 @cached("filter_categories", ttl=TTL_FILTERS)
 def get_categories(db: Session = Depends(get_db)):
     return services.get_categories(db)
 
-@router.get("/filters/regions", summary="Get available regions", description="Returns a list of all distinct region names.", tags=["Filters"])
+@router.get("/filters/regions", summary="Get available countries/regions", tags=["Filters"])
 @cached("filter_regions", ttl=TTL_FILTERS)
 def get_regions(db: Session = Depends(get_db)):
     return services.get_regions(db)
 
-@router.get("/filters/date-range", summary="Get date range bounds", description="Returns the minimum and maximum sale dates in the database.", tags=["Filters"])
+@router.get("/filters/channels", summary="Get available channels", tags=["Filters"])
+@cached("filter_channels", ttl=TTL_FILTERS)
+def get_channels(db: Session = Depends(get_db)):
+    return services.get_channels(db)
+
+@router.get("/filters/cities", summary="Get available cities", tags=["Filters"])
+@cached("filter_cities", ttl=TTL_FILTERS)
+def get_cities(db: Session = Depends(get_db)):
+    return services.get_cities(db)
+
+@router.get("/filters/date-range", summary="Get date range bounds", tags=["Filters"])
 @cached("filter_date_range", ttl=TTL_FILTERS)
 def get_date_range(db: Session = Depends(get_db)):
     return services.get_date_range(db)

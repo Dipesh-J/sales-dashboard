@@ -1,32 +1,28 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func, extract, case, literal_column
+from sqlalchemy import func, extract, desc
 from datetime import date, timedelta
 from dateutil.relativedelta import relativedelta
-from ..models.models import Sale, Product, Store, Region
+from ..models.models import SalesData
 
 
 def _parse_date_range(date_range: str, db: Session = None):
     """Convert frontend dateRange param ('month','quarter','year') to start/end dates.
-    Picks the most recent year that has meaningful data (>10 rows), ignoring stray
-    future rows that would otherwise shift the dashboard to a near-empty year."""
+    Picks the most recent year that has meaningful data (>10 rows)."""
     ref = date.today()
     if db:
-        total = db.query(func.count(Sale.id)).scalar() or 0
-        # Threshold: a year needs at least 10 rows or 5% of total data
+        total = db.query(func.count(SalesData.id)).scalar() or 0
         threshold = max(10, int(total * 0.05))
 
-        # Get years with their row counts, most recent first
-        from sqlalchemy import desc
         year_counts = db.query(
-            extract("year", Sale.date).label("yr"),
+            SalesData.year.label("yr"),
             func.count().label("cnt"),
-        ).group_by("yr").order_by(desc("yr")).all()
+        ).group_by(SalesData.year).order_by(desc(SalesData.year)).all()
 
         for yr_row in year_counts:
             if yr_row.cnt >= threshold:
                 yr = int(yr_row.yr)
-                max_in_year = db.query(func.max(Sale.date)).filter(
-                    extract("year", Sale.date) == yr
+                max_in_year = db.query(func.max(SalesData.invoice_date)).filter(
+                    SalesData.year == yr
                 ).scalar()
                 if max_in_year:
                     ref = max_in_year
@@ -44,24 +40,24 @@ def _parse_date_range(date_range: str, db: Session = None):
     return start, ref
 
 
-def _apply_filters(query, brand=None, category=None, region=None, start_date=None, end_date=None):
-    """Apply optional filters to a query that already joins Product/Store/Region as needed."""
+def _apply_filters(query, brand=None, category=None, country=None, city=None,
+                   channel=None, start_date=None, end_date=None):
+    """Apply optional filters to a SalesData query."""
     if brand and brand != "All":
-        query = query.filter(Product.brand == brand)
+        query = query.filter(SalesData.brand == brand)
     if category and category != "All":
-        query = query.filter(Product.category == category)
-    if region and region != "All":
-        query = query.filter(Region.name == region)
+        query = query.filter(SalesData.category == category)
+    if country and country != "All":
+        query = query.filter(SalesData.country == country)
+    if city and city != "All":
+        query = query.filter(SalesData.city == city)
+    if channel and channel != "All":
+        query = query.filter(SalesData.channel == channel)
     if start_date:
-        query = query.filter(Sale.date >= start_date)
+        query = query.filter(SalesData.invoice_date >= start_date)
     if end_date:
-        query = query.filter(Sale.date <= end_date)
+        query = query.filter(SalesData.invoice_date <= end_date)
     return query
-
-
-def _base_sale_query(db: Session):
-    """Base query joining Sale→Product, Sale→Store→Region."""
-    return db.query(Sale).join(Product, Sale.product_id == Product.id).join(Store, Sale.store_id == Store.id).join(Region, Store.region_id == Region.id)
 
 
 def _resolve_dates(date_range, start_date, end_date, db: Session = None):
@@ -88,22 +84,33 @@ def _paginate(items, page, page_size):
 # ── Filter endpoints ──
 
 def get_brands(db: Session):
-    results = db.query(Product.brand).distinct().order_by(Product.brand).all()
-    return [r[0] for r in results]
+    results = db.query(SalesData.brand).distinct().order_by(SalesData.brand).all()
+    return [r[0] for r in results if r[0]]
 
 
 def get_categories(db: Session):
-    results = db.query(Product.category).distinct().order_by(Product.category).all()
-    return [r[0] for r in results]
+    results = db.query(SalesData.category).distinct().order_by(SalesData.category).all()
+    return [r[0] for r in results if r[0]]
 
 
 def get_regions(db: Session):
-    results = db.query(Region.name).distinct().order_by(Region.name).all()
-    return [r[0] for r in results]
+    """Returns distinct countries (replaces old 'regions')."""
+    results = db.query(SalesData.country).distinct().order_by(SalesData.country).all()
+    return [r[0] for r in results if r[0]]
+
+
+def get_channels(db: Session):
+    results = db.query(SalesData.channel).distinct().order_by(SalesData.channel).all()
+    return [r[0] for r in results if r[0]]
+
+
+def get_cities(db: Session):
+    results = db.query(SalesData.city).distinct().order_by(SalesData.city).all()
+    return [r[0] for r in results if r[0]]
 
 
 def get_date_range(db: Session):
-    result = db.query(func.min(Sale.date), func.max(Sale.date)).first()
+    result = db.query(func.min(SalesData.invoice_date), func.max(SalesData.invoice_date)).first()
     if result and result[0]:
         return {"min_date": result[0].isoformat(), "max_date": result[1].isoformat()}
     return {"min_date": None, "max_date": None}
@@ -111,173 +118,142 @@ def get_date_range(db: Session):
 
 # ── Sales services ──
 
-def get_total_sales(db: Session, brand=None, category=None, region=None,
-                    date_range=None, start_date=None, end_date=None):
+def get_total_sales(db: Session, brand=None, category=None, country=None, city=None,
+                    channel=None, date_range=None, start_date=None, end_date=None):
     sd, ed = _resolve_dates(date_range, start_date, end_date, db)
-    q = db.query(func.coalesce(func.sum(Sale.value), 0)).join(
-        Product, Sale.product_id == Product.id
-    ).join(Store, Sale.store_id == Store.id).join(Region, Store.region_id == Region.id)
-    q = _apply_filters(q, brand, category, region, sd, ed)
+    q = db.query(func.coalesce(func.sum(SalesData.value), 0))
+    q = _apply_filters(q, brand, category, country, city, channel, sd, ed)
     total = q.scalar()
     return {"value": round(float(total), 2)}
 
 
-def get_yoy_sales(db: Session, brand=None, category=None, region=None,
-                  date_range=None, start_date=None, end_date=None):
+def get_yoy_sales(db: Session, brand=None, category=None, country=None, city=None,
+                  channel=None, date_range=None, start_date=None, end_date=None):
     sd, ed = _resolve_dates(date_range, start_date, end_date, db)
 
-    # If no dates resolved, use current year vs previous year
     if not sd or not ed:
         today = date.today()
         ed = today
         sd = today.replace(month=1, day=1)
 
-    # Current period
-    q = db.query(func.coalesce(func.sum(Sale.value), 0)).join(
-        Product, Sale.product_id == Product.id
-    ).join(Store, Sale.store_id == Store.id).join(Region, Store.region_id == Region.id)
-    q = _apply_filters(q, brand, category, region, sd, ed)
+    q = db.query(func.coalesce(func.sum(SalesData.value), 0))
+    q = _apply_filters(q, brand, category, country, city, channel, sd, ed)
     current = float(q.scalar())
 
-    # Previous period (same range shifted back 1 year)
     prev_sd = sd - relativedelta(years=1)
     prev_ed = ed - relativedelta(years=1)
-    q2 = db.query(func.coalesce(func.sum(Sale.value), 0)).join(
-        Product, Sale.product_id == Product.id
-    ).join(Store, Sale.store_id == Store.id).join(Region, Store.region_id == Region.id)
-    q2 = _apply_filters(q2, brand, category, region, prev_sd, prev_ed)
+    q2 = db.query(func.coalesce(func.sum(SalesData.value), 0))
+    q2 = _apply_filters(q2, brand, category, country, city, channel, prev_sd, prev_ed)
     previous = float(q2.scalar())
 
     percent = round(((current - previous) / previous) * 100, 1) if previous else 0
     return {"value": round(current, 2), "percent": percent}
 
 
-def get_sales_by_brand(db: Session, brand=None, category=None, region=None,
-                       date_range=None, start_date=None, end_date=None,
+def get_sales_by_brand(db: Session, brand=None, category=None, country=None, city=None,
+                       channel=None, date_range=None, start_date=None, end_date=None,
                        page=1, page_size=20):
     sd, ed = _resolve_dates(date_range, start_date, end_date, db)
-    q = db.query(Product.brand, func.sum(Sale.value).label("value")).join(
-        Product, Sale.product_id == Product.id
-    ).join(Store, Sale.store_id == Store.id).join(Region, Store.region_id == Region.id)
-    q = _apply_filters(q, brand, category, region, sd, ed)
-    q = q.group_by(Product.brand).order_by(func.sum(Sale.value).desc())
+    q = db.query(SalesData.brand, func.sum(SalesData.value).label("value"))
+    q = _apply_filters(q, brand, category, country, city, channel, sd, ed)
+    q = q.group_by(SalesData.brand).order_by(func.sum(SalesData.value).desc())
     items = [{"brand": r[0], "value": round(float(r[1]), 2)} for r in q.all()]
     return _paginate(items, page, page_size)
 
 
-def get_sales_by_region(db: Session, brand=None, category=None, region=None,
-                        date_range=None, start_date=None, end_date=None,
+def get_sales_by_region(db: Session, brand=None, category=None, country=None, city=None,
+                        channel=None, date_range=None, start_date=None, end_date=None,
                         page=1, page_size=20):
     sd, ed = _resolve_dates(date_range, start_date, end_date, db)
-    q = db.query(Region.name, func.sum(Sale.value).label("value")).join(
-        Product, Sale.product_id == Product.id
-    ).join(Store, Sale.store_id == Store.id).join(Region, Store.region_id == Region.id)
-    q = _apply_filters(q, brand, category, region, sd, ed)
-    q = q.group_by(Region.name).order_by(func.sum(Sale.value).desc())
+    q = db.query(SalesData.country, func.sum(SalesData.value).label("value"))
+    q = _apply_filters(q, brand, category, country, city, channel, sd, ed)
+    q = q.group_by(SalesData.country).order_by(func.sum(SalesData.value).desc())
     items = [{"region": r[0], "value": round(float(r[1]), 2)} for r in q.all()]
     return _paginate(items, page, page_size)
 
 
-def get_sales_by_category(db: Session, brand=None, category=None, region=None,
-                          date_range=None, start_date=None, end_date=None,
+def get_sales_by_category(db: Session, brand=None, category=None, country=None, city=None,
+                          channel=None, date_range=None, start_date=None, end_date=None,
                           page=1, page_size=20):
     sd, ed = _resolve_dates(date_range, start_date, end_date, db)
-    q = db.query(Product.category, func.sum(Sale.value).label("value")).join(
-        Product, Sale.product_id == Product.id
-    ).join(Store, Sale.store_id == Store.id).join(Region, Store.region_id == Region.id)
-    q = _apply_filters(q, brand, category, region, sd, ed)
-    q = q.group_by(Product.category).order_by(func.sum(Sale.value).desc())
+    q = db.query(SalesData.category, func.sum(SalesData.value).label("value"))
+    q = _apply_filters(q, brand, category, country, city, channel, sd, ed)
+    q = q.group_by(SalesData.category).order_by(func.sum(SalesData.value).desc())
     items = [{"name": r[0], "value": round(float(r[1]), 2)} for r in q.all()]
     return _paginate(items, page, page_size)
 
 
-def get_top_products(db: Session, n=10, brand=None, category=None, region=None,
-                     date_range=None, start_date=None, end_date=None,
+def get_top_products(db: Session, n=10, brand=None, category=None, country=None, city=None,
+                     channel=None, date_range=None, start_date=None, end_date=None,
                      page=1, page_size=20):
     sd, ed = _resolve_dates(date_range, start_date, end_date, db)
-    q = db.query(Product.name, func.sum(Sale.value).label("value")).join(
-        Product, Sale.product_id == Product.id
-    ).join(Store, Sale.store_id == Store.id).join(Region, Store.region_id == Region.id)
-    q = _apply_filters(q, brand, category, region, sd, ed)
-    q = q.group_by(Product.name).order_by(func.sum(Sale.value).desc()).limit(n)
+    q = db.query(SalesData.item_description, func.sum(SalesData.value).label("value"))
+    q = _apply_filters(q, brand, category, country, city, channel, sd, ed)
+    q = q.group_by(SalesData.item_description).order_by(func.sum(SalesData.value).desc()).limit(n)
     items = [{"name": r[0], "value": round(float(r[1]), 2)} for r in q.all()]
     return _paginate(items, page, page_size)
 
 
-def get_sales_trend(db: Session, brand=None, category=None, region=None,
-                    date_range=None, start_date=None, end_date=None,
+def get_sales_trend(db: Session, brand=None, category=None, country=None, city=None,
+                    channel=None, date_range=None, start_date=None, end_date=None,
                     granularity="month"):
     sd, ed = _resolve_dates(date_range, start_date, end_date, db)
 
     if granularity == "year":
         q = db.query(
-            extract("year", Sale.date).label("yr"),
-            func.sum(Sale.value).label("value"),
-        ).join(Product, Sale.product_id == Product.id).join(
-            Store, Sale.store_id == Store.id
-        ).join(Region, Store.region_id == Region.id)
-        q = _apply_filters(q, brand, category, region, sd, ed)
-        q = q.group_by("yr").order_by("yr")
+            SalesData.year.label("yr"),
+            func.sum(SalesData.value).label("value"),
+        )
+        q = _apply_filters(q, brand, category, country, city, channel, sd, ed)
+        q = q.group_by(SalesData.year).order_by(SalesData.year)
         return [{"date": str(int(r[0])), "value": round(float(r[1]), 2)} for r in q.all()]
 
     elif granularity == "quarter":
-        yr_col = extract("year", Sale.date).label("yr")
-        q_col = ((extract("month", Sale.date) - 1) / 3 + 1).label("qtr")
-        q = db.query(
-            yr_col, q_col,
-            func.sum(Sale.value).label("value"),
-        ).join(Product, Sale.product_id == Product.id).join(
-            Store, Sale.store_id == Store.id
-        ).join(Region, Store.region_id == Region.id)
-        q = _apply_filters(q, brand, category, region, sd, ed)
+        yr_col = extract("year", SalesData.invoice_date).label("yr")
+        q_col = ((extract("month", SalesData.invoice_date) - 1) / 3 + 1).label("qtr")
+        q = db.query(yr_col, q_col, func.sum(SalesData.value).label("value"))
+        q = _apply_filters(q, brand, category, country, city, channel, sd, ed)
         q = q.group_by("yr", "qtr").order_by("yr", "qtr")
         return [{"date": f"{int(r[0])}-Q{int(r[1])}", "value": round(float(r[2]), 2)} for r in q.all()]
 
     else:  # month (default)
         q = db.query(
-            extract("year", Sale.date).label("yr"),
-            extract("month", Sale.date).label("mn"),
-            func.sum(Sale.value).label("value"),
-        ).join(Product, Sale.product_id == Product.id).join(
-            Store, Sale.store_id == Store.id
-        ).join(Region, Store.region_id == Region.id)
-        q = _apply_filters(q, brand, category, region, sd, ed)
+            extract("year", SalesData.invoice_date).label("yr"),
+            extract("month", SalesData.invoice_date).label("mn"),
+            func.sum(SalesData.value).label("value"),
+        )
+        q = _apply_filters(q, brand, category, country, city, channel, sd, ed)
         q = q.group_by("yr", "mn").order_by("yr", "mn")
         return [{"date": f"{int(r[0])}-{int(r[1]):02d}", "value": round(float(r[2]), 2)} for r in q.all()]
 
 
-# ── Store services ──
+# ── Store / Customer services (adapted from old "active stores") ──
 
-def get_active_stores(db: Session, brand=None, category=None, region=None,
-                      date_range=None, start_date=None, end_date=None):
+def get_active_stores(db: Session, brand=None, category=None, country=None, city=None,
+                      channel=None, date_range=None, start_date=None, end_date=None):
+    """Count distinct customers (replaces old active stores)."""
     sd, ed = _resolve_dates(date_range, start_date, end_date, db)
-    q = db.query(func.count(func.distinct(Sale.store_id))).join(
-        Product, Sale.product_id == Product.id
-    ).join(Store, Sale.store_id == Store.id).join(Region, Store.region_id == Region.id)
-    q = _apply_filters(q, brand, category, region, sd, ed)
+    q = db.query(func.count(func.distinct(SalesData.customer_account_number)))
+    q = _apply_filters(q, brand, category, country, city, channel, sd, ed)
     return {"value": q.scalar() or 0}
 
 
-def get_yoy_active_stores(db: Session, brand=None, category=None, region=None,
-                          date_range=None, start_date=None, end_date=None):
+def get_yoy_active_stores(db: Session, brand=None, category=None, country=None, city=None,
+                          channel=None, date_range=None, start_date=None, end_date=None):
     sd, ed = _resolve_dates(date_range, start_date, end_date, db)
     if not sd or not ed:
         today = date.today()
         ed = today
         sd = today.replace(month=1, day=1)
 
-    q = db.query(func.count(func.distinct(Sale.store_id))).join(
-        Product, Sale.product_id == Product.id
-    ).join(Store, Sale.store_id == Store.id).join(Region, Store.region_id == Region.id)
-    q = _apply_filters(q, brand, category, region, sd, ed)
+    q = db.query(func.count(func.distinct(SalesData.customer_account_number)))
+    q = _apply_filters(q, brand, category, country, city, channel, sd, ed)
     current = q.scalar() or 0
 
     prev_sd = sd - relativedelta(years=1)
     prev_ed = ed - relativedelta(years=1)
-    q2 = db.query(func.count(func.distinct(Sale.store_id))).join(
-        Product, Sale.product_id == Product.id
-    ).join(Store, Sale.store_id == Store.id).join(Region, Store.region_id == Region.id)
-    q2 = _apply_filters(q2, brand, category, region, prev_sd, prev_ed)
+    q2 = db.query(func.count(func.distinct(SalesData.customer_account_number)))
+    q2 = _apply_filters(q2, brand, category, country, city, channel, prev_sd, prev_ed)
     previous = q2.scalar() or 0
 
     change = current - previous
@@ -285,70 +261,60 @@ def get_yoy_active_stores(db: Session, brand=None, category=None, region=None,
     return {"value": change, "percent": percent}
 
 
-def get_active_stores_by_region(db: Session, brand=None, category=None, region=None,
-                                date_range=None, start_date=None, end_date=None,
+def get_active_stores_by_region(db: Session, brand=None, category=None, country=None, city=None,
+                                channel=None, date_range=None, start_date=None, end_date=None,
                                 page=1, page_size=20):
     sd, ed = _resolve_dates(date_range, start_date, end_date, db)
-    q = db.query(Region.name, func.count(func.distinct(Sale.store_id)).label("value")).join(
-        Product, Sale.product_id == Product.id
-    ).join(Store, Sale.store_id == Store.id).join(Region, Store.region_id == Region.id)
-    q = _apply_filters(q, brand, category, region, sd, ed)
-    q = q.group_by(Region.name).order_by(Region.name)
+    q = db.query(SalesData.country, func.count(func.distinct(SalesData.customer_account_number)).label("value"))
+    q = _apply_filters(q, brand, category, country, city, channel, sd, ed)
+    q = q.group_by(SalesData.country).order_by(SalesData.country)
     items = [{"region": r[0], "value": r[1]} for r in q.all()]
     return _paginate(items, page, page_size)
 
 
-def get_active_stores_by_brand(db: Session, brand=None, category=None, region=None,
-                                date_range=None, start_date=None, end_date=None,
-                                page=1, page_size=20):
+def get_active_stores_by_brand(db: Session, brand=None, category=None, country=None, city=None,
+                               channel=None, date_range=None, start_date=None, end_date=None,
+                               page=1, page_size=20):
     sd, ed = _resolve_dates(date_range, start_date, end_date, db)
-    q = db.query(Product.brand, func.count(func.distinct(Sale.store_id)).label("value")).join(
-        Product, Sale.product_id == Product.id
-    ).join(Store, Sale.store_id == Store.id).join(Region, Store.region_id == Region.id)
-    q = _apply_filters(q, brand, category, region, sd, ed)
-    q = q.group_by(Product.brand).order_by(func.count(func.distinct(Sale.store_id)).desc())
+    q = db.query(SalesData.brand, func.count(func.distinct(SalesData.customer_account_number)).label("value"))
+    q = _apply_filters(q, brand, category, country, city, channel, sd, ed)
+    q = q.group_by(SalesData.brand).order_by(func.count(func.distinct(SalesData.customer_account_number)).desc())
     items = [{"brand": r[0], "value": r[1]} for r in q.all()]
     return _paginate(items, page, page_size)
 
 
-def get_active_stores_trend(db: Session, brand=None, category=None, region=None,
-                            date_range=None, start_date=None, end_date=None,
+def get_active_stores_trend(db: Session, brand=None, category=None, country=None, city=None,
+                            channel=None, date_range=None, start_date=None, end_date=None,
                             granularity="month"):
     sd, ed = _resolve_dates(date_range, start_date, end_date, db)
 
     if granularity == "year":
         q = db.query(
-            extract("year", Sale.date).label("yr"),
-            func.count(func.distinct(Sale.store_id)).label("value"),
-        ).join(Product, Sale.product_id == Product.id).join(
-            Store, Sale.store_id == Store.id
-        ).join(Region, Store.region_id == Region.id)
-        q = _apply_filters(q, brand, category, region, sd, ed)
-        q = q.group_by("yr").order_by("yr")
+            SalesData.year.label("yr"),
+            func.count(func.distinct(SalesData.customer_account_number)).label("value"),
+        )
+        q = _apply_filters(q, brand, category, country, city, channel, sd, ed)
+        q = q.group_by(SalesData.year).order_by(SalesData.year)
         return [{"date": str(int(r[0])), "value": r[1]} for r in q.all()]
 
     elif granularity == "quarter":
-        yr_col = extract("year", Sale.date).label("yr")
-        q_col = ((extract("month", Sale.date) - 1) / 3 + 1).label("qtr")
+        yr_col = extract("year", SalesData.invoice_date).label("yr")
+        q_col = ((extract("month", SalesData.invoice_date) - 1) / 3 + 1).label("qtr")
         q = db.query(
             yr_col, q_col,
-            func.count(func.distinct(Sale.store_id)).label("value"),
-        ).join(Product, Sale.product_id == Product.id).join(
-            Store, Sale.store_id == Store.id
-        ).join(Region, Store.region_id == Region.id)
-        q = _apply_filters(q, brand, category, region, sd, ed)
+            func.count(func.distinct(SalesData.customer_account_number)).label("value"),
+        )
+        q = _apply_filters(q, brand, category, country, city, channel, sd, ed)
         q = q.group_by("yr", "qtr").order_by("yr", "qtr")
         return [{"date": f"{int(r[0])}-Q{int(r[1])}", "value": r[2]} for r in q.all()]
 
-    else:  # month (default)
+    else:  # month
         q = db.query(
-            extract("year", Sale.date).label("yr"),
-            extract("month", Sale.date).label("mn"),
-            func.count(func.distinct(Sale.store_id)).label("value"),
-        ).join(Product, Sale.product_id == Product.id).join(
-            Store, Sale.store_id == Store.id
-        ).join(Region, Store.region_id == Region.id)
-        q = _apply_filters(q, brand, category, region, sd, ed)
+            extract("year", SalesData.invoice_date).label("yr"),
+            extract("month", SalesData.invoice_date).label("mn"),
+            func.count(func.distinct(SalesData.customer_account_number)).label("value"),
+        )
+        q = _apply_filters(q, brand, category, country, city, channel, sd, ed)
         q = q.group_by("yr", "mn").order_by("yr", "mn")
         return [{"date": f"{int(r[0])}-{int(r[1]):02d}", "value": r[2]} for r in q.all()]
 
@@ -356,50 +322,69 @@ def get_active_stores_trend(db: Session, brand=None, category=None, region=None,
 def generate_sample_data(db: Session, rows: int = 10):
     import random
 
-    # Fetch whole product tuples (name, brand, category) to keep them consistent
-    product_tuples = db.query(Product.name, Product.brand, Product.category).distinct().limit(50).all()
-    if not product_tuples:
-        product_tuples = [
-            ("Nike Air Max 90", "Nike", "Footwear"),
-            ("Adidas Ultraboost 24", "Adidas", "Footwear"),
-            ("Puma Logo Tee", "Puma", "Apparel"),
-            ("UA Rival Fleece Hoodie", "Under Armour", "Apparel"),
-            ("Reebok Nano X4", "Reebok", "Footwear"),
-        ]
+    brands = db.query(SalesData.brand).distinct().limit(20).all()
+    brands = [r[0] for r in brands if r[0]] or ["Delmond", "Delphy", "Solerone", "Neo"]
 
-    # Fetch store-region pairs to keep them consistent
-    store_region_pairs = db.query(Store.id, Region.name).join(
-        Region, Store.region_id == Region.id
-    ).all()
-    if not store_region_pairs:
-        store_region_pairs = [
-            (101, "North"), (102, "North"),
-            (201, "South"), (202, "South"),
-            (301, "East"), (302, "East"),
-            (401, "West"), (402, "West"),
-        ]
+    categories = db.query(SalesData.category).distinct().limit(20).all()
+    categories = [r[0] for r in categories if r[0]] or ["Biscuits", "Cheese", "Chocolate"]
 
-    # Use max date in DB as upper bound to avoid generating future dates
-    max_date = db.query(func.max(Sale.date)).scalar()
+    countries = db.query(SalesData.country).distinct().limit(10).all()
+    countries = [r[0] for r in countries if r[0]] or ["Qatar"]
+
+    cities = db.query(SalesData.city).distinct().limit(10).all()
+    cities = [r[0] for r in cities if r[0]] or ["DOHA"]
+
+    channels = db.query(SalesData.channel).distinct().limit(10).all()
+    channels = [r[0] for r in channels if r[0]] or ["Minimart"]
+
+    max_date = db.query(func.max(SalesData.invoice_date)).scalar()
     ref_date = max_date if max_date else date.today()
 
     sample_data = []
-
     for _ in range(rows):
-        name, brand, category = random.choice(product_tuples)
-        store_id, region = random.choice(store_region_pairs)
+        brand = random.choice(brands)
+        category = random.choice(categories)
+        country = random.choice(countries)
+        city = random.choice(cities)
+        channel = random.choice(channels)
         sale_date = ref_date - timedelta(days=random.randint(0, 365))
-        quantity = random.randint(1, 100)
-        unit_price = round(random.uniform(10.0, 250.0), 2)
+        quantity = round(random.uniform(0.5, 100), 2)
+        unit_price = round(random.uniform(10.0, 500.0), 2)
+        value = round(quantity * unit_price, 2)
+
         sample_data.append({
-            "Product Name": name,
-            "Brand": brand,
+            "Master Distributor": "Sample Distributor",
+            "Distributor": "Sample Products",
+            "Line of Business": "Sample LOB",
+            "Supplier": "SAMPLE SUPPLIER",
+            "Agency": category,
             "Category": category,
-            "Region": region,
-            "Store ID": store_id,
-            "Date": sale_date.isoformat(),
-            "Quantity": quantity,
-            "Value": round(quantity * unit_price, 2)
+            "Segment": f"{brand} {category}",
+            "Brand": brand,
+            "Sub Brand": brand,
+            "Country": country,
+            "City": city,
+            "Area": city,
+            "Retailer Group": "Sample Retailers",
+            "Retailer Sub Group": "Sample Sub Group",
+            "Channel": channel,
+            "Sub Channel": f"{channel} A",
+            "Salesmen": "Sample Salesman",
+            "Order Number": str(random.randint(200000, 300000)),
+            "Customer": "SAMPLE CUSTOMER",
+            "Customer Account Name": "SAMPLE ACCOUNT",
+            "Customer Account Number": str(random.randint(10000, 20000)),
+            "Item": str(random.randint(1000000000, 9999999999)),
+            "Item Description": f"{brand} {category} Sample",
+            "Promo Item": "No",
+            "Foc/NonFOC": "NONFOC",
+            "Unit Selling Price": unit_price,
+            "Invoice Number": str(random.randint(300000, 400000)),
+            "invoice Date": sale_date.strftime("%-d-%b-%y"),
+            "Year": sale_date.year,
+            "Month": sale_date.strftime("%b").upper(),
+            "Invoiced Quantity": quantity,
+            "Value": value,
         })
 
     return sample_data

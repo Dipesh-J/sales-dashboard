@@ -17,5 +17,9 @@ __pycache__/
 server/.env
 client/.env
 
+# Test data
+test_upload_*.csv
+sample_sales_data*.csv
+
 # OS
 .DS_Store
